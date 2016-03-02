@@ -21,33 +21,40 @@ def lecture(pathname) :
     fichier.close()
     return res 
 
+def lecture2(pathname) :
+    fichier = open(pathname,'r')
+    (dim1,dim2) = ([],[])
+    for ligne in fichier :
+        (taille,poids) = ligne.split()
+        dim1.append(float(taille))
+        dim2.append(float(poids))
+    return (dim1,dim2) 
+
 ################# VARIABLES #################
-x = np.linspace(4,15,100)
 
-x0 = np.array(lecture('x0.txt'),float)
-x1 = np.array(lecture('x1.txt'),float)
-x2 = np.array(lecture('x2.txt'),float)
+(tmp_taille_f,tmp_poids_f) = lecture2('taillepoids_f.txt')
+(tmp_taille_h,tmp_poids_h) = lecture2('taillepoids_h.txt')
+taille_f = np.array(tmp_taille_f,float)
+taille_h = np.array(tmp_taille_h,float)
 
-y0 = np.array(lecture('y0.txt'),float)
-y1 = np.array(lecture('y1.txt'),float)
-y2 = np.array(lecture('y2.txt'),float)
+nbFilles = len(taille_f)
+nbHommes = len(taille_h)
 
-ones0 = np.ones(len(x0))
-ones1 = np.ones(len(x1))
-ones2 = np.ones(len(x2))
+poids_f = np.array(tmp_poids_f,float)
+poids_h = np.array(tmp_poids_h,float)
 
-matrix0 = np.zeros((2,len(x0)))
-matrix1 = np.zeros((2,len(x1)))
-matrix2 = np.zeros((2,len(x2)))
+lesZeros = np.zeros(nbFilles)
+lesUns = np.ones(len(taille_h))
 
-matrix0[1,:] = x0
-matrix1[1,:] = x1
-matrix2[1,:] = x2
-
-matrix0[0,:] = ones0
-matrix1[0,:] = ones1
-matrix2[0,:] = ones2
 ############# FONCTIONS #############
+def sigmoidVecteur(vecteur) :
+    newVecteur = np.copy(vecteur)
+    for i in range(len(vecteur)) :
+        newVecteur[i] = sigmoid(vecteur[i])
+    return newVecteur
+
+def sigmoid(x) :
+    return 1 / (1+math.exp(-x))
 
 def matrixDegresN(degres, vecteur) :
     '''
@@ -64,6 +71,10 @@ def matrixDegresN(degres, vecteur) :
 def donneY(teta,matrix) :
     return np.dot(matrix.T,teta)
 ############# MESURE DE PERF #############
+def risqueEmpirique(x,y,teta,N):
+    sigmo = sigmoidVecteur(np.dot(x.T,teta))
+    interm = np.dot(-y,np.log(sigmo)) - np.dot((1-y),np.log(1-sigmo))
+    return np.sum(interm)/float(N)
 
 def mesureAbs(x1,y,teta,N=100) :
     vecteur = y - np.dot(x1.T,teta)
@@ -122,10 +133,32 @@ def descenteGradientStochastique(matrix,y,teta,t,epsilon=0.00000001,N=100) :
             tetaActuel = tetaPlusPlus
             tempsActuel += 1
 
+def descenteGradientSigmoide(matrix,y,teta,t,epsilon,N):
+    tempsActuel = t
+    tetaActuel = teta
+    while(True) :
+        intermediaire = np.dot(matrix,(y - sigmoidVecteur(np.dot(matrix.T,tetaActuel))))
+        tetaPlusPlus = tetaActuel + np.dot(np.dot(alpha(t),intermediaire),1./float(N))
+        if risqueEmpirique(matrix,y,tetaActuel,N) - risqueEmpirique(matrix,y,tetaPlusPlus,N) <= epsilon :
+            return tetaActuel
+        else :
+            tetaActuel = tetaPlusPlus
+            tempsActuel += 1
 
+def randTeta(n) :
+    res = []
+    for i in range(n) :
+        res.append(np.array([r.random(),r.random()],float))
+    return res 
 
+def descenteMultiple(matrix,y,listeTeta,t,epsilon,N) :
+    res = []
+    for teta in listeTeta :
+        res.append(descenteGradientSigmoide(matrix,y,teta,t,epsilon,N))
+    return res
 
 ################# SCRIPT #################
+
 
 # (teta0,teta1) = moindresCarres(matrix0,y0)
 # plt.plot(x0,y0,'ro')
@@ -137,6 +170,30 @@ def descenteGradientStochastique(matrix,y,teta,t,epsilon=0.00000001,N=100) :
 # teta = moindresCarres(matrix,y1)
 # y = donneY(teta,matrix)
 # plt.plot(x1,y,'bo')
-plt.plot(x2,y2,'ro')
+# plt.plot(x2,y2,'ro')
+
+classe0 = np.zeros(nbFilles)
+classe1 = np.ones(nbHommes)
+
+probUnSachantX = float(nbHommes/(nbHommes+nbFilles))
+
+matrix = np.ones((2,(nbHommes+nbFilles)))
+matrix[1,:] = np.concatenate([taille_f,taille_h])
+lesClasses = np.concatenate([classe0,classe1])
+
+
+listeTeta = randTeta(10)
+lesTetasLearn = descenteMultiple(matrix,lesClasses,listeTeta,1,0.000001,nbHommes+nbFilles)
+seuil = 0.6
+
+
+plt.ylim(-1,2)
+plt.plot(taille_h,classe1,'bo')
+plt.plot(taille_f,classe0,'ro')
+for tetaL in lesTetasLearn :
+    A = tetaL[1]
+    b = tetaL[0]
+    X = (1/A*math.log(1-seuil)-math.log(seuil)+b)
+    plt.axvline(X)
 
 plt.show()
